@@ -1,0 +1,302 @@
+---
+title: "spatial_water_column_metabolism"
+author: "MKAUFMAN"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## setup
+```{r include=FALSE}
+library(ggplot2)
+#library("anytime")
+#library(tidyverse)
+# set working directory
+#setwd("C:/Users/kauf093/OneDrive - PNNL/Documents/2020 RC2/august_manual_chamber_testing");
+```
+
+## import data and clean up
+
+```{r message=FALSE}
+rawdata<-read.csv("//pnl/projects/SBR_SFA/RC2/open_channel_metabolism_manuscript/data analysis/water_column_resp_for_initial_exploration.csv")
+colnames(rawdata)[1]<-"SID"
+rawdata$DO.slope.mgday<-rawdata$DO.slope*60*24
+length(rawdata$SID)
+
+rawdata<-subset(rawdata, DO.rsq>=0.25)
+length(rawdata$SID)
+
+mean_T<-read.csv("//pnl/projects/SBR_SFA/RC2/open_channel_metabolism_manuscript/data analysis/mean_T_trim.csv")
+T_slope<-read.csv("//pnl/projects/SBR_SFA/RC2/open_channel_metabolism_manuscript/data analysis/T_slope.csv")
+colnames(T_slope)[2]<-"T_1_slope"
+
+TSS<-read.csv("//pnl/projects/SBR_SFA/RC2/open_channel_metabolism_manuscript/data analysis/TSS.csv")
+colnames(TSS)[1]<-"vial_ID"
+colnames(TSS)[2]<-"SID"
+colnames(TSS)[3]<-"TSSmgl"
+
+
+merged_T<-merge(rawdata,mean_T,"SID")
+merged_T<-merge(merged_T,T_slope,"SID")
+
+merged_TSS<-merge(rawdata,TSS,"SID")
+
+
+#create aggregate tables
+#stream order and DO slope by site
+site_mean <- aggregate(list(rawdata$DO.slope.mgday,rawdata$NHD.NEXSS_StreamOrde),list(rawdata$SID) , mean)
+colnames(site_mean)[1]<-"SID"
+colnames(site_mean)[2]<-"DO.slope.mgday.mean"
+colnames(site_mean)[3]<-"stream_order"
+site_mean<-merge(site_mean,mean_T,"SID")
+
+site_max <- aggregate(list(rawdata$DO.slope.mgday),list(rawdata$SID) , max)
+colnames(site_max)[1]<-"SID"
+colnames(site_max)[2]<-"DO.slope.mgday.max"
+site_min <- aggregate(list(rawdata$DO.slope.mgday),list(rawdata$SID) , min)
+colnames(site_min)[1]<-"SID"
+colnames(site_min)[2]<-"DO.slope.mgday.min"
+
+site_mean<-merge(list(site_mean,mean_T,site_max,site_min),"SID")
+
+write.csv(site_mean,"site_mean.csv")
+
+
+#DO slope by stream order
+stream_order_mean <- aggregate(list(rawdata$DO.slope.mgday),list(rawdata$NHD.NEXSS_StreamOrde) , mean)
+colnames(stream_order_mean)[1]<-"stream_order"
+colnames(stream_order_mean)[2]<-"DO.slope.mgday.mean"
+
+
+
+```
+
+## import chemistry data
+
+```{r message=FALSE}
+#chemistry data 
+chemdataheaders<-read.csv("//pnl/projects/SBR_SFA/RC1/RC2-Data-Deliveries/RC2-Spatial-Study-2021-Sample-Data/SPS_DIC_NPOC_TN_TSS.csv",skip = 2, header = F, nrows = 1, as.is = T)
+chemdata<-read.csv("//pnl/projects/SBR_SFA/RC1/RC2-Data-Deliveries/RC2-Spatial-Study-2021-Sample-Data/SPS_DIC_NPOC_TN_TSS.csv",skip=14,header = F)
+colnames(chemdata)= chemdataheaders
+
+#site ID to vial ID mapping info
+IDmapping<-read.csv("//pnl/projects/SBR_SFA/RC2/04_Spatial_Study_2021/06_Metadata/RC2 Spatial Study (Responses) - Form Responses 1(updated 2022-05-17).csv",header = T)
+IDmapping<-data.frame(IDmapping$Site_Vial_ID_.SPS_4_digit_numeric_code,IDmapping$ID)
+
+```
+
+##format and prep chemistry data
+```{r message=FALSE, warning=FALSE}
+chemdata<-chemdata[!(chemdata$Field_Name=="#End_Data"),]
+chemdata$sample_id<-substr(chemdata$Sample_Name,0,8)
+chemdata$repnum<-substr(chemdata$Sample_Name,10,10)
+
+#remove any -9999 values
+chemdata$`00691_DIC_mg_per_L_as_C`[chemdata$`00691_DIC_mg_per_L_as_C` == -9999] <- NA
+chemdata$`00681_NPOC_mg_per_L_as_C`[chemdata$`00681_NPOC_mg_per_L_as_C` == -9999] <- NA
+chemdata$`00602_TN_mg_per_L_as_N`[chemdata$`00602_TN_mg_per_L_as_N` == -9999] <- NA
+chemdata$`00530_TSS_mg_per_L`[chemdata$`00530_TSS_mg_per_L` == -9999] <- NA
+
+#remove any values that contain data flags
+chemdata$`00691_DIC_mg_per_L_as_C`<- lapply(chemdata$`00691_DIC_mg_per_L_as_C`, function(x) as.numeric(as.character(x)))
+chemdata$`00681_NPOC_mg_per_L_as_C`<- lapply(chemdata$`00681_NPOC_mg_per_L_as_C`, function(x) as.numeric(as.character(x)))
+chemdata$`00602_TN_mg_per_L_as_N`<- lapply(chemdata$`00602_TN_mg_per_L_as_N`, function(x) as.numeric(as.character(x)))
+chemdata$`00530_TSS_mg_per_L`<- lapply(chemdata$`00530_TSS_mg_per_L`, function(x) as.numeric(as.character(x)))
+
+#aggregate replicate values by averaging reps across sample ID
+DIC<- chemdata[c("sample_id","00691_DIC_mg_per_L_as_C")]
+NPOC<- chemdata[c("sample_id","00681_NPOC_mg_per_L_as_C")]
+TN<- chemdata[c("sample_id","00602_TN_mg_per_L_as_N")]
+TSS<- chemdata[c("sample_id","00530_TSS_mg_per_L")]
+
+DIC$`00691_DIC_mg_per_L_as_C`<-as.numeric(unlist(DIC$`00691_DIC_mg_per_L_as_C`))
+NPOC$`00681_NPOC_mg_per_L_as_C`<-as.numeric(unlist(NPOC$`00681_NPOC_mg_per_L_as_C`))
+TN$`00602_TN_mg_per_L_as_N`<-as.numeric(unlist(TN$`00602_TN_mg_per_L_as_N`))
+TSS$`00530_TSS_mg_per_L`<-as.numeric(unlist(TSS$`00530_TSS_mg_per_L`))
+
+DIC <- DIC[complete.cases(DIC), ]
+NPOC <- NPOC[complete.cases(NPOC), ]
+TN <- TN[complete.cases(TN), ]
+TSS <- TSS[complete.cases(TSS), ]
+
+DICagg = aggregate(DIC,
+                by = list(DIC$sample_id),
+                FUN = mean)
+NPOCagg = aggregate(NPOC,
+                by = list(NPOC$sample_id),
+                FUN = mean)
+TNagg = aggregate(TN,
+                by = list(TN$sample_id),
+                FUN = mean)
+TSSagg = aggregate(TSS,
+                by = list(TSS$sample_id),
+                FUN = mean)
+
+chemdata_agg<-data.frame(chemdata$sample_id)
+chemdata_agg<-chemdata_agg[!duplicated(chemdata_agg), ]
+chemdata_agg<-sort(chemdata_agg, decreasing = FALSE)
+chemdata_agg<-data.frame(chemdata_agg)
+colnames(chemdata_agg)<-"sample_id"
+
+chemdata_agg<-merge(x=chemdata_agg, y=IDmapping,by.x="sample_id",by.y="IDmapping.Site_Vial_ID_.SPS_4_digit_numeric_code", all.x=TRUE, sort = TRUE)
+chemdata_agg<-chemdata_agg[!is.na(chemdata_agg$IDmapping.ID),]
+
+chemdata_agg<-merge(x=chemdata_agg, y=DICagg,by.x="sample_id",by.y="Group.1", all.x=TRUE, sort = TRUE)
+chemdata_agg <- subset(chemdata_agg, select = -(sample_id.y))
+
+chemdata_agg<-merge(x=chemdata_agg, y=NPOCagg,by.x="sample_id",by.y="Group.1", all.x=TRUE, sort = TRUE)
+chemdata_agg <- subset(chemdata_agg, select = -(sample_id.y))
+
+chemdata_agg<-merge(x=chemdata_agg, y=TNagg,by.x="sample_id",by.y="Group.1", all.x=TRUE, sort = TRUE)
+chemdata_agg <- subset(chemdata_agg, select = -(sample_id.y))
+
+chemdata_agg<-merge(x=chemdata_agg, y=TSSagg,by.x="sample_id",by.y="Group.1", all.x=TRUE, sort = TRUE)
+chemdata_agg <- subset(chemdata_agg, select = -(sample_id.y))
+
+#merge chem data with DO rate data
+chemdata_merged<-merge(x=chemdata_agg, y=site_mean, by.x="IDmapping.ID", by.y="SID",all=TRUE)
+chemdata_merged<-na.omit(chemdata_merged)
+
+```
+
+##initial analysis
+```{r message=FALSE}
+#histogram
+hist(rawdata$DO.slope.mgday,breaks=25,main="",xlab="Respiration rate (mg O2/L*day)", ylab="frequency")
+
+#count greater than/less than criterion value
+gt0p01<-which(rawdata$DO.slope.mgday>0.01)
+lte0p01<-which(rawdata$DO.slope.mgday<=0.01)
+gt0<-which(rawdata$DO.slope.mgday>0)
+lte0<-which(rawdata$DO.slope.mgday<=0)
+
+site_mean$range<-site_mean$DO.slope.mgday.max-site_mean$DO.slope.mgday.min
+site_mean$range_over_mean=site_mean$range/abs(site_mean$DO.slope.mgday.mean)
+hist(site_mean$range_over_mean,breaks=100)
+devlte0p5<-which(site_mean$range_over_mean<=0.5)
+
+
+#plot raw slope data vs. site ID
+ggplot(rawdata, aes(x=SID, y=DO.slope.mgday)) +  geom_boxplot(fill='green') + ylab("Respiration rate (mg O2/L*day)") + xlab("Site ID") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+#plot one box of all sites in grams per m3 per day
+ggplot(rawdata, aes(y=DO.slope.mgday/1000)) +  geom_boxplot(fill='blue') + ylab("Rate (grams per m3 per day)")
+#plot raw slope data vs. stream order
+plot(rawdata$NHD.NEXSS_StreamOrde, rawdata$DO.slope.mgday, main="open channel respiration vs stream order",
+   xlab="stream order ", ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#box plot raw slope data vs. stream order
+boxplot(DO.slope.mgday~NHD.NEXSS_StreamOrde,data=rawdata, main="",
+   xlab="Stream Order", ylab="Respiration rate (mg O2/L*day)")
+slope.streamorder <- lm(DO.slope.mgday ~ NHD.NEXSS_StreamOrde, data=rawdata)
+X = sort(unique(rawdata$NHD.NEXSS_StreamOrde))
+lines(x=1:length(X),
+y=predict(slope.streamorder,data.frame(NHD.NEXSS_StreamOrde=X)),col="blue",lwd=2)
+
+boxplot_linreg <- lm(DO.slope.mgday ~ NHD.NEXSS_StreamOrde, data=rawdata)
+summary(boxplot_linreg)
+
+
+
+#plot site-mean slope data vs. stream order
+plot(site_mean$stream_order, site_mean$DO.slope.mgday.mean, main="site-mean open channel respiration vs stream order",
+   xlab="stream order ", ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#box plot site-mean slope data vs. stream order
+boxplot(DO.slope.mgday.mean~stream_order,data=site_mean, main="site-mean open channel respiration vs stream order",
+   xlab="Stream Order", ylab="DO slope (mg*l^-1*day^-1)")
+
+#plot stream-order-mean slope data vs. stream order
+plot(stream_order_mean$stream_order, stream_order_mean$DO.slope.mgday.mean, main="stream-order-mean open channel respiration vs stream order",
+   xlab="stream order ", ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#plot raw slope data vs. total catchment area
+plot(rawdata$NHD.NEXSS_TotDASqKM, rawdata$DO.slope.mgday, main="open channel respiration vs total drained area",
+   xlab="total DA (sqkm) ", ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#plot raw slope data vs. slope
+plot(rawdata$NHD.NEXSS_SLOPE, rawdata$DO.slope.mgday, main="open channel respiration vs slope",
+   xlab="slope", ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#plot raw slope data vs. log discharge
+plot((rawdata$NHD.NEXSS_log10_Disc), rawdata$DO.slope.mgday, main="open channel respiration vs log10 discharge",
+   xlab="discharge", ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#plot raw slope data vs. log drainage
+plot((rawdata$NHD.NEXSS_log10_Drai), rawdata$DO.slope.mgday, main="open channel respiration vs log10 drainage",
+   xlab="drainage", ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#plot raw slope data vs. log residence
+plot((rawdata$NHD.NEXSS_log10_Resi), rawdata$DO.slope.mgday, main="open channel respiration vs log10 residence",
+   xlab="residence",ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#plot raw slope data vs. log exchange
+plot((rawdata$NHD.NEXSS_log10_Exch), rawdata$DO.slope.mgday, main="open channel respiration vs log10 exchange",
+   xlab="exchange",ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+#plot raw slope data vs. mean temperature
+plot(merged_T$T_1, merged_T$DO.slope.mgday, pch = 16, cex = 1.3,  main = "", xlab="Mean Temperature (C)",ylab="Respiration rate (mg O2/L*day)")+abline(lm(`DO.slope.mgday` ~ T_1, data=merged_T))
+
+#plot raw slope data vs. temperature slope
+plot(merged_T$T_1_slope, merged_T$DO.slope.mgday, pch = 16, cex = 1.3, col = "green", main = "open channel respiration vs temperature slope", xlab="temp slope (C/min)",ylab="DO slope (mg*l^-1*day^-1)")
+
+#plot raw slope data vs. TSS
+#nan out values under 4
+merged_TSS_detects <- subset(merged_TSS, TSSmgl >=4)
+plot(merged_TSS_detects$TSSmgl, merged_TSS_detects$DO.slope.mgday, pch = 16, cex = 1.3, col = "blue", main = "open channel respiration vs TSS", xlab="TSS (mg/l)",ylab="DO slope (mg*l^-1*day^-1)")
+#+abline(lm(`DO.slope.mgday` ~ TSSmgl, data=merged_TSS))
+TSS_linreg <- lm(`DO.slope.mgday` ~ TSSmgl, data=merged_TSS_detects)
+summary(TSS_linreg)
+
+
+plot(merged_T$T_1, merged_T$DO.slope.mgday, main="open channel respiration vs temperature",
+   xlab="temp (C)",ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+temp_linreg <- lm(`DO.slope.mgday` ~ T_1, data=merged_T)
+summary(temp_linreg)
+
+#plot site mean slope data vs. mean temperature
+plot(site_mean$T_1, site_mean$DO.slope.mgday.mean, main="site mean open channel respiration vs temperature",
+   xlab="temp (C)",ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+site_temp_linreg <- lm(`DO.slope.mgday.mean` ~ T_1, data=site_mean)
+summary(site_temp_linreg)
+
+temp_slope_linreg <- lm(`DO.slope.mgday` ~ T_1_slope, data=merged_T)
+summary(temp_slope_linreg)
+
+```
+
+##initial chem data analysis
+```{r message=FALSE}
+
+plot(chemdata_merged$`00691_DIC_mg_per_L_as_C` , chemdata_merged$DO.slope.mgday.mean, main="open channel respiration vs DIC",
+   xlab="DIC (mg/l as C)",ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+temp_linreg <- lm(`DO.slope.mgday.mean` ~ `00691_DIC_mg_per_L_as_C`, data=chemdata_merged)
+summary(temp_linreg)
+
+
+plot(chemdata_merged$`00681_NPOC_mg_per_L_as_C`, chemdata_merged$DO.slope.mgday.mean, main="open channel respiration vs NPOC",
+   xlab="NPOC (mg/l as C)",ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+#+abline(lm(`DO.slope.mgday.mean` ~ `00681_NPOC_mg_per_L_as_C`, data=chemdata_merged))
+
+temp_linreg <- lm(`DO.slope.mgday.mean` ~ `00681_NPOC_mg_per_L_as_C`, data=chemdata_merged)
+summary(temp_linreg)
+
+plot(chemdata_merged$`00602_TN_mg_per_L_as_N` , chemdata_merged$DO.slope.mgday.mean, main="open channel respiration vs TN",
+   xlab="TN (mg/l as N)",ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+#+abline(lm(`DO.slope.mgday.mean` ~ `00602_TN_mg_per_L_as_N`, data=chemdata_merged))
+
+temp_linreg <- lm(`DO.slope.mgday.mean` ~ `00602_TN_mg_per_L_as_N`, data=chemdata_merged)
+summary(temp_linreg)
+
+plot(chemdata_merged$`00530_TSS_mg_per_L` , chemdata_merged$DO.slope.mgday.mean, main="open channel respiration vs TSS",
+   xlab="TSS (mg/l)",ylab="DO slope (mg*l^-1*day^-1)", pch=19)
+
+temp_linreg <- lm(`DO.slope.mgday.mean` ~ `00530_TSS_mg_per_L`, data=chemdata_merged)
+summary(temp_linreg)
+```
