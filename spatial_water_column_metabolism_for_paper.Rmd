@@ -179,7 +179,14 @@ hist(site_mean$range_over_mean,breaks=100)
 devlte0p5<-which(site_mean$range_over_mean<=0.5)
 
 
-#plot raw slope data vs. site ID
+#plot raw slope data vs. site ID boxplot
+ggplot(rawdata, aes(x=SID, y=DO.slope.mgday)) +  geom_boxplot(fill='green') + ylab("Respiration rate (mg O2/L*day)") + xlab("Site ID") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+#plot raw slope data vs. site ID dot plot
+
+
+
+
 ggplot(rawdata, aes(x=SID, y=DO.slope.mgday)) +  geom_boxplot(fill='green') + ylab("Respiration rate (mg O2/L*day)") + xlab("Site ID") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 #plot one box of all sites in grams per m3 per day
@@ -267,6 +274,12 @@ summary(site_temp_linreg)
 
 temp_slope_linreg <- lm(`DO.slope.mgday` ~ T_1_slope, data=merged_T)
 summary(temp_slope_linreg)
+
+ggplot(rawdata, aes(x=SID, y=DO.slope.mgday)) + 
+  stat_summary(fun=mean, geom="point", shape=18,size=3, color="red") +
+  geom_dotplot(binaxis='y', stackdir='center',binwidth = 0.002,) +
+  ylab("Respiration rate (mg O2/L*day)") + xlab("Site ID") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),legend.position = c(0, 0))
 
 ```
 
