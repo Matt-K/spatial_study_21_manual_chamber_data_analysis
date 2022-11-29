@@ -70,7 +70,7 @@ sd(site_mean$DO.slope.mgday)
 ```
 ## import chemistry data, format, and clean up
 
-```{r message=FALSE}
+```{r message=FALSE warning=FALSE}
 #chemistry data 
 #//pnl/projects/SBR_SFA/RC1/RC2-Data-Deliveries/RC2-Spatial-Study-2021-Sample-Data/SPS_DIC_NPOC_TN_TSS.csv
 chemdataheaders<-read.csv("SPS_DIC_NPOC_TN_TSS.csv",skip = 2, header = F, nrows = 1, as.is = T)
@@ -155,7 +155,7 @@ chemdata_agg <- subset(chemdata_agg, select = -(sample_id.y))
 #merge chem data with DO rate data
 chemdata_merged<-merge(x=chemdata_agg, y=site_mean, by.x="IDmapping.ID", by.y="SID",all=TRUE)
 #write chemdata_merged
-write.csv(chemdata_merged,"chem_data.csv", row.names = FALSE)
+#write.csv(chemdata_merged,"chem_data.csv", row.names = FALSE)
 ```
 
 #dot plot figure (comparison of repilcates)
