@@ -58,6 +58,14 @@ rawdata<-subset(rawdata, DO.NRMSE<=0.01)
 
 #average rate and temperature data by site
 site_mean <- aggregate(cbind(DO.slope.mgday,T_mean) ~ SID, data = rawdata, FUN = mean, na.rm = TRUE)
+print("mean")
+mean(site_mean$DO.slope.mgday)
+print("min")
+min(site_mean$DO.slope.mgday)
+print("max")
+max(site_mean$DO.slope.mgday)
+print("sd")
+sd(site_mean$DO.slope.mgday)
 
 ```
 ## import chemistry data, format, and clean up
