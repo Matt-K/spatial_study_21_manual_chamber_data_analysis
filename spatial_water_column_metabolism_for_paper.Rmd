@@ -58,6 +58,10 @@ rawdata<-subset(rawdata, DO.NRMSE<=0.01)
 
 #average rate and temperature data by site
 site_mean <- aggregate(cbind(DO.slope.mgday,T_mean) ~ SID, data = rawdata, FUN = mean, na.rm = TRUE)
+site_mean$SID[site_mean$SID == "W20"] <- "RC3_01"    
+site_mean$SID[site_mean$SID == "W10"] <- "RC3_02" 
+site_mean$SID[site_mean$SID == "U20"] <- "RC3_03" 
+
 print("mean")
 mean(site_mean$DO.slope.mgday)
 print("min")
