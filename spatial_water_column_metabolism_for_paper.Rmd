@@ -180,8 +180,16 @@ hist(rawdata$DO.slope.mgday,breaks=25,main="",xlab="Respiration rate (mg O2/L*da
 stream_order<-read.csv("RC2_all_stream_Attributes_updated.csv")
 stream_order <- stream_order[,c("site_ID","StreamOrde")]
 
+#rename 3 sites to match 2021 data naming convention
+stream_order$site_ID[stream_order$site_ID == "W20"] <- "RC3_01"    
+stream_order$site_ID[stream_order$site_ID == "W10"] <- "RC3_02" 
+stream_order$site_ID[stream_order$site_ID == "U20"] <- "RC3_03" 
+
 Tbasin_area<-read.csv("RC2_all_topographic_Attributes_updated.csv")
 Tbasin_area <- Tbasin_area[,c("site_ID","TOT_BASIN_AREA")]
+Tbasin_area$site_ID[Tbasin_area$site_ID == "W20"] <- "RC3_01"    
+Tbasin_area$site_ID[Tbasin_area$site_ID == "W10"] <- "RC3_02" 
+Tbasin_area$site_ID[Tbasin_area$site_ID == "U20"] <- "RC3_03" 
 
 spatialdata_merged<-merge(x=chemdata_merged, y=stream_order, by.x="IDmapping.ID", by.y="site_ID")
 spatialdata_merged<-merge(x=spatialdata_merged, y=Tbasin_area, by.x="IDmapping.ID", by.y="site_ID")
